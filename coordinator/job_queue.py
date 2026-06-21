@@ -89,15 +89,13 @@ class JobQueue:
             return [j for j in self._jobs.values() if j.status == Status.RUNNING]
 
     def reclaim_stale_leases(self, max_lease_seconds: float) -> list[str]:
-        """Requeue RUNNING jobs whose lease has been held too long.
+        """Requeue RUNNING jobs whose lease has expired.
 
-        This catches a different failure mode than heartbeat-based dead-worker
-        detection. A worker PROCESS can be alive and heartbeating normally
-        while one specific THREAD inside it is stuck on a single job forever
-        (e.g. an infinite loop, a hung network call). Heartbeats only prove
-        the process is alive, not that any particular job is making progress
-        -- so we also need a per-job timeout, independent of the worker's
-        heartbeat, using the leased_at timestamp that pop() already records.
+    Heartbeats only prove the worker process is alive, not that a
+    specific job is progressing -- a thread can hang on a single job
+    (infinite loop, stuck network call) while the process keeps
+    heartbeating fine. This uses the leased_at timestamp from pop()
+    to catch that case independently of heartbeat checks.
         """
         stale_ids = []
         with self._lock:
