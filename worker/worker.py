@@ -20,7 +20,6 @@ class Worker:
         self._stop = threading.Event()
 
     def run_job(self, job: dict) -> bool:
-        # placeholder work - swap this out for whatever the job should actually do
         duration = random.uniform(0.5, 2.0)
         log.info("[%s] running job %s (payload=%r, attempt %d) -- %.1fs",
                   self.worker_id, job["id"], job["payload"], job["attempts"], duration)
