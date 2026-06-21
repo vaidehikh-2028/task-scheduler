@@ -84,13 +84,24 @@ def status():
     return jsonify([j.to_dict() for j in queue.snapshot()])
 
 
+LEASE_TIMEOUT = 15.0  # generous relative to run_job()'s simulated 0.5-2s duration
+
+
 def monitor_dead_workers(interval: float = 3.0):
     while True:
         time.sleep(interval)
+
+        # Catches: the worker PROCESS has gone quiet (crashed, network died).
         for job in queue.running_snapshot():
             if job.worker_id and not heartbeats.is_alive(job.worker_id):
                 log.warning("worker %s presumed dead, requeuing job %s", job.worker_id, job.id)
                 queue.requeue(job.id)
+
+        # Catches: the process is alive and heartbeating, but this specific
+        # job's thread is stuck and isn't making progress.
+        stale = queue.reclaim_stale_leases(LEASE_TIMEOUT)
+        for job_id in stale:
+            log.warning("job %s lease expired (worker alive but job stuck), requeuing", job_id)
 
 
 def main():
