@@ -1,8 +1,7 @@
 """
-Verifies the lease-timeout fix: a worker that keeps heartbeating normally
-(so it looks alive) but whose job-thread is stuck (never calls /jobs/complete)
-should still have its job reclaimed after LEASE_TIMEOUT, and picked up by a
-different worker.
+Reproduces the lease-timeout bug: a worker that heartbeats normally but
+whose job thread hangs (never calls /jobs/complete) should still get its
+job reclaimed after LEASE_TIMEOUT and picked up by another worker.
 """
 import threading
 import time
@@ -20,24 +19,19 @@ def stuck_worker_heartbeat_loop(worker_id, stop_event):
 def main():
     stop_event = threading.Event()
 
-    # 1. Submit one job.
     resp = requests.post(f"{BASE}/jobs", json={"payload": "stuck_test_job", "priority": 5})
     job_id = resp.json()["id"]
     print(f"submitted job {job_id}")
 
-    # 2. "Stuck worker" leases it...
     stuck_worker_id = "stuck-worker"
     resp = requests.get(f"{BASE}/jobs/next", params={"worker_id": stuck_worker_id})
     leased = resp.json()
     assert leased["id"] == job_id, "expected the stuck worker to get our job"
     print(f"stuck-worker leased job {job_id} -- now going 'stuck' (never completes it)")
 
-    # ...but keeps heartbeating forever, simulating a process that's alive
-    # while one thread inside it is hung.
     hb_thread = threading.Thread(target=stuck_worker_heartbeat_loop, args=(stuck_worker_id, stop_event), daemon=True)
     hb_thread.start()
 
-    # 3. Poll /status every 2s and report what we see.
     for i in range(12):  # ~24s, enough to cross the 15s LEASE_TIMEOUT
         time.sleep(2)
         resp = requests.get(f"{BASE}/status")
