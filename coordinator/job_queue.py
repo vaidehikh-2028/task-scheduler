@@ -36,7 +36,7 @@ class JobQueue:
     def __init__(self):
         self._lock = threading.Lock()
         self._heap = []
-        self._counter = itertools.count()  # avoids heapq comparing Job objects directly
+        self._counter = itertools.count()  
         self._jobs: dict[str, Job] = {}
 
     def push(self, job: Job):
