@@ -47,6 +47,12 @@ A new/other worker will pick it up.
 - This is at-least-once execution, not exactly-once - if a worker finishes a
   job but dies before reporting it, another worker could redo it. Fine for
   this scale, would need idempotency keys to fix properly.
+- Heartbeats only prove a worker *process* is alive, not that any specific
+  job is making progress - a single thread inside an otherwise-healthy
+  process can hang forever. `reclaim_stale_leases()` covers this separately:
+  it requeues any job whose lease (`leased_at`) has been held longer than
+  `LEASE_TIMEOUT`, regardless of whether its worker is still heartbeating.
+  Verified end-to-end in `test_lease_timeout.py`.
 
 ## Possible next steps
 - persist the queue (sqlite) so a coordinator restart doesn't lose jobs
